@@ -4,6 +4,8 @@ import pygetwindow as gw
 import threading
 import time
 
+# pyinstaller - -onefile - -windowed
+
 def main():
     root = tk.Tk()
     root.title("Autoclicker")
