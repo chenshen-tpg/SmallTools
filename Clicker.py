@@ -8,7 +8,7 @@ def main():
     root = tk.Tk()
     root.title("Clicker")
 
-    window_width = 450
+    window_width = 380
     window_height = 110
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
@@ -18,15 +18,13 @@ def main():
 
     count_var = tk.StringVar(value="9999")
     status_var = tk.StringVar(value="Status: Idle")
+    remaining_var = tk.StringVar(value="")
 
-    count_frame = tk.Frame(root)
-    count_frame.pack(pady=5)
-    tk.Label(count_frame, text="All counts:").pack(side=tk.LEFT)
-    count_entry = tk.Entry(count_frame, textvariable=count_var, width=8)
-    count_entry.pack(side=tk.LEFT, padx=2)
-    count_label = tk.Label(count_frame, text="Current count: 0")
-    count_label.pack(side=tk.LEFT, padx=5)
-    tk.Label(count_frame, textvariable=status_var).pack(side=tk.LEFT, padx=20)
+    # Status label sits directly above buttons
+    status_frame = tk.Frame(root)
+    status_frame.pack(pady=(6, 0))
+    tk.Label(status_frame, textvariable=status_var).pack(side=tk.LEFT, padx=(0, 10))
+    tk.Label(status_frame, textvariable=remaining_var).pack(side=tk.LEFT)
 
     count_lock = threading.Lock()
     action_lock = threading.Lock()
@@ -39,6 +37,24 @@ def main():
     clicking_window = [None]
     running = [False]
 
+    # Per-action sleep interval vars (seconds)
+    move_sleep_var = tk.StringVar(value="5")
+    scroll_sleep_var = tk.StringVar(value="5")
+    click_sleep_var = tk.StringVar(value="5")
+
+    def _make_count_row(win, sleep_var):
+        """Add 'All counts' + sleep into a popup window."""
+        count_frame = tk.Frame(win)
+        count_frame.pack(pady=(4, 0))
+        tk.Label(count_frame, text="All counts:").pack(side=tk.LEFT)
+        tk.Entry(count_frame, textvariable=count_var, width=7).pack(side=tk.LEFT, padx=2)
+        tk.Label(count_frame, text="Sleep (s):").pack(side=tk.LEFT, padx=(6, 0))
+        tk.Entry(count_frame, textvariable=sleep_var, width=5).pack(side=tk.LEFT, padx=2)
+
+        def on_count_change(*args):
+            remaining_var.set("")
+        count_var.trace_add("write", on_count_change)
+
     def show_clicking_window():
         if clicking_window[0] and tk.Toplevel.winfo_exists(clicking_window[0]):
             clicking_window[0].deiconify()
@@ -46,11 +62,11 @@ def main():
             update_clicking_position()
             return
         win = tk.Toplevel(root)
-        win.title("Clicking Window")
-        win.geometry("200x100")
+        win.title("Clicking")
+        win.geometry("310x110")
         win.resizable(False, False)
-        tk.Label(win, text="Clicking in progress...").pack(pady=5)
-        tk.Button(win, text="Click", command=start_ClickingActions).pack(pady=10)
+        _make_count_row(win, click_sleep_var)
+        tk.Button(win, text="Click", command=start_ClickingActions).pack(pady=6)
         def on_close():
             win.after(2000, win.withdraw)
         win.protocol("WM_DELETE_WINDOW", on_close)
@@ -67,11 +83,11 @@ def main():
             update_moving_position()
             return
         win = tk.Toplevel(root)
-        win.title("Moving Window")
-        win.geometry("200x100")
+        win.title("Moving")
+        win.geometry("310x110")
         win.resizable(False, False)
-        tk.Label(win, text="Moving in progress...").pack(pady=5)
-        tk.Button(win, text="Move", command=start_MovingActions).pack(pady=10)
+        _make_count_row(win, move_sleep_var)
+        tk.Button(win, text="Move", command=start_MovingActions).pack(pady=6)
         def on_close():
             win.after(2000, win.withdraw)
         win.protocol("WM_DELETE_WINDOW", on_close)
@@ -88,11 +104,11 @@ def main():
             update_scrolling_position()
             return
         win = tk.Toplevel(root)
-        win.title("Scrolling Window")
-        win.geometry("200x100")
+        win.title("Scrolling")
+        win.geometry("310x110")
         win.resizable(False, False)
-        tk.Label(win, text="Moving in progress...").pack(pady=5)
-        tk.Button(win, text="Scroll", command=start_ScrollingActions).pack(pady=10)
+        _make_count_row(win, scroll_sleep_var)
+        tk.Button(win, text="Scroll", command=start_ScrollingActions).pack(pady=6)
         def on_close():
             win.after(2000, win.withdraw)
         win.protocol("WM_DELETE_WINDOW", on_close)
@@ -108,21 +124,19 @@ def main():
             btn_x = btn.winfo_rootx()
             btn_y = btn.winfo_rooty()
             btn_h = btn.winfo_height()
-            clicking_window[0].geometry(f"+{btn_x}+{btn_y + btn_h + 50}")
+            clicking_window[0].geometry(f"+{btn_x}+{btn_y + btn_h + 10}")
 
     def update_scrolling_position(event=None):
         if scrolling_window[0] and tk.Toplevel.winfo_exists(scrolling_window[0]):
             root_x = root.winfo_x()
             root_y = root.winfo_y()
-            root_w = root.winfo_width()
             scrolling_window[0].geometry(f"+{root_x}+{root_y - 150}")
 
     def update_moving_position(event=None):
         if moving_window[0] and tk.Toplevel.winfo_exists(moving_window[0]):
             root_x = root.winfo_x()
             root_y = root.winfo_y()
-            root_w = root.winfo_width()
-            moving_window[0].geometry(f"+{root_x - 210}+{root_y}")
+            moving_window[0].geometry(f"+{root_x - 320}+{root_y}")
 
     def update_history_position(event=None):
         if history_window[0] and tk.Toplevel.winfo_exists(history_window[0]):
@@ -170,45 +184,51 @@ def main():
             for item in history_list:
                 history_listbox[0].insert(tk.END, item)
 
-    def move_loop(count):
+    def move_loop(count, sleep_s):
         with action_lock:
             for i in range(count):
                 if not running[0]:
                     break
                 pyautogui.moveRel(-50, 0)
                 pyautogui.moveRel(50, 0)
+                remaining = count - i - 1
                 with count_lock:
-                    count_label.config(text=f"Count: {i + 1}")
-                time.sleep(5)
+                    remaining_var.set(f"Remaining: {remaining}")
+                time.sleep(sleep_s)
             running[0] = False
             status_var.set("Status: Idle")
+            remaining_var.set("")
             log_action("Move", count)
 
-    def scroll_loop(count):
+    def scroll_loop(count, sleep_s):
         with action_lock:
             for i in range(count):
                 if not running[0]:
                     break
                 pyautogui.scroll(50)
                 pyautogui.scroll(-50)
+                remaining = count - i - 1
                 with count_lock:
-                    count_label.config(text=f"Count: {i + 1}")
-                time.sleep(5)
+                    remaining_var.set(f"Remaining: {remaining}")
+                time.sleep(sleep_s)
             running[0] = False
             status_var.set("Status: Idle")
+            remaining_var.set("")
             log_action("Scroll", count)
 
-    def click_loop(count):
+    def click_loop(count, sleep_s):
         with action_lock:
             for i in range(count):
                 if not running[0]:
                     break
                 pyautogui.click()
+                remaining = count - i - 1
                 with count_lock:
-                    count_label.config(text=f"Count: {i + 1}")
-                time.sleep(5)
+                    remaining_var.set(f"Remaining: {remaining}")
+                time.sleep(sleep_s)
             running[0] = False
             status_var.set("Status: Idle")
+            remaining_var.set("")
             log_action("Click", count)
 
     def open_MovingActions():
@@ -225,7 +245,7 @@ def main():
 
     def stop_actions():
         running[0] = False
-        count_label.config(text="Count: 0")
+        remaining_var.set("")
         status_var.set("Status: Idle")
         for win in [history_window[0], moving_window[0], scrolling_window[0], clicking_window[0]]:
             if win and tk.Toplevel.winfo_exists(win):
@@ -242,8 +262,12 @@ def main():
             count = int(count_var.get())
         except ValueError:
             count = 10
+        try:
+            sleep_s = float(move_sleep_var.get())
+        except ValueError:
+            sleep_s = 5.0
         running[0] = True
-        threading.Thread(target=move_loop, args=(count,), daemon=True).start()
+        threading.Thread(target=move_loop, args=(count, sleep_s), daemon=True).start()
 
     def start_ScrollingActions():
         if action_lock.locked():
@@ -256,8 +280,12 @@ def main():
             count = int(count_var.get())
         except ValueError:
             count = 10
+        try:
+            sleep_s = float(scroll_sleep_var.get())
+        except ValueError:
+            sleep_s = 5.0
         running[0] = True
-        threading.Thread(target=scroll_loop, args=(count,), daemon=True).start()
+        threading.Thread(target=scroll_loop, args=(count, sleep_s), daemon=True).start()
 
     def start_ClickingActions():
         if action_lock.locked():
@@ -270,13 +298,16 @@ def main():
             count = int(count_var.get())
         except ValueError:
             count = 10
+        try:
+            sleep_s = float(click_sleep_var.get())
+        except ValueError:
+            sleep_s = 5.0
         running[0] = True
-        threading.Thread(target=click_loop, args=(count,), daemon=True).start()
+        threading.Thread(target=click_loop, args=(count, sleep_s), daemon=True).start()
 
     button_frame = tk.Frame(root)
     button_frame.pack(pady=5)
 
-    # Action button with popup menu
     def show_action_menu(event):
         action_menu.tk_popup(event.x_root, event.y_root)
 
@@ -289,14 +320,11 @@ def main():
     action_btn.pack(side=tk.LEFT, padx=5)
     action_btn.bind("<Button-1>", show_action_menu)
 
-    # Port Switch popup menu
     def show_port_menu(event):
         port_menu.tk_popup(event.x_root, event.y_root)
 
     def switch_port(port):
-        status_var.set(f"Status: Switching Port to {port.upper()}")
         os.system(f"dispsel switch {port}")
-        status_var.set(f"Status: Port switched to {port.upper()}")
 
     port_menu = tk.Menu(button_frame, tearoff=0)
     port_menu.add_command(label="HDMI1", command=lambda: switch_port("hdmi1"))
